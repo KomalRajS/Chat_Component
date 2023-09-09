@@ -11,3 +11,47 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+.vh-95 {
+  height: 95vh !important;
+}
+
+.chat-height {
+  height : calc(100% - 20vh) !important;
+}
+
+
+.chat-window {
+  z-index: 100;
+  height: 100%;
+  overflow: hidden;
+}
+
+.chat-message-left, .chat-message-right {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.chat-message-left {
+  margin-right : auto;
+}
+
+.chat-message-right {
+  margin-left : auto;
+  flex-direction: row-reverse;
+}
+
+.chat-input {
+  position: sticky;
+  bottom: 0;
+}
+
+.styles_scrollable-div__prSCv {
+  max-height: calc(100% - 2px) !important;
+  height: calc(100% - 2px) !important;
+  overflow-y: auto;
+}
+
+.txt {
+  max-width: 600px ;
+}
