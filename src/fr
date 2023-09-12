@@ -1,5 +1,3 @@
-
-
 import "bootstrap/dist/css/bootstrap.min.css";
 import "font-awesome/css/font-awesome.css";
 import { io } from "socket.io-client";
@@ -14,16 +12,25 @@ function App() {
   const [newUser, setNewUser] = useState("");
   const [user, setUser] = useState({});
   const [users, setUsers] = useState([]);
+const [room, setRoom] = useState("");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
-  const [room, setRoom] = useState("");
-  const [showNameInput, setShowNameInput] = useState(true);
-  const [showRoomInput, setShowRoomInput] = useState(false);
+  const [selectedRoom, setSelectedRoom] = useState(""); // Track selected room
+const [showNameInput, setShowNameInput] = useState(true);
+  const [showRoomSelection, setShowRoomSelection] = useState(false);
   const [showChat, setShowChat] = useState(false);
+
+
 
 
   useEffect(() => {
     socket.on("users", (users) => {
+      const messagesArr = [];
+      for (const { userId, username } of users) {
+        const newMessage = { type: "userStatus", userId, username };
+        messagesArr.push(newMessage);
+      }
+      setMessages([...messages, ...messagesArr]);
       setUsers(users);
     });
 
@@ -33,31 +40,37 @@ function App() {
     });
 
 
-    socket.on("user connected", ({ userId, username, room: userRoom }) => {
-      if (userRoom === room) {
-        const newMessage = {
-          type: "userStatus",
-          userId,
-          username,
-          message: `${username} has joined the room`,
-        };
-        setMessages((prevMessages) => [...prevMessages, newMessage]);
+    socket.on("user connected", ({ userId, username, room }) => {
+      // Handle user connected event for the selected room
+      if (room === selectedRoom) {
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          {
+            type: "userStatus",
+            userId,
+            username,
+            message: `${username} has joined ${room}`,
+          },
+        ]);
       }
     });
 
 
-    socket.on("new message", ({ userId, username, message, room: messageRoom }) => {
-      if (messageRoom === room) {
-        const newMessage = {
-          type: "message",
-          userId,
-          username,
-          message,
-        };
-        setMessages((prevMessages) => [...prevMessages, newMessage]);
+    socket.on("new message", ({ userId, username, message, room }) => {
+      // Handle new message event for the selected room
+      if (room === selectedRoom) {
+        setMessages((prevMessages) => [
+          ...prevMessages,
+          {
+            type: "message",
+            userId,
+            username,
+            message,
+          },
+        ]);
       }
     });
-  }, [socket, room]);
+  }, [socket, selectedRoom, messages]);
 
 
   function handleChange({ currentTarget: input }) {
@@ -65,27 +78,44 @@ function App() {
   }
 
 
-  function logNewUser() {
+   function logNewUser() {
     setUser({ username: newUser });
     socket.auth = { username: newUser };
     socket.connect();
     setShowNameInput(false);
-    setShowRoomInput(true);
+    setShowRoomSelection(true);
   }
 
-
-  function joinRoom() {
-    socket.emit("join room", room);
-    setShowRoomInput(false);
-    setShowChat(true);
-  }
 
 
   function sendMessage() {
-    if (room) {
-      socket.emit("new message", message, room);
+    if (selectedRoom) {
+      socket.emit("new message", message, selectedRoom);
 
+
+      const newMessage = {
+        type: "message",
+        userId: user.userId,
+        username: user.username,
+        message,
+        room: selectedRoom,
+      };
+      setMessages([...messages, newMessage]);
       setMessage("");
+    }
+  }
+
+
+  function joinRoom(room) {
+    setSelectedRoom(room);
+    socket.emit("join room", room);
+  }
+
+
+  function leaveRoom() {
+    if (selectedRoom) {
+      socket.emit("leave room", selectedRoom);
+      setSelectedRoom(""); // Clear selected room
     }
   }
 
@@ -93,13 +123,12 @@ function App() {
   return (
     <main className="content">
       <div className="container mt-3">
-        {showNameInput && (
+        {!user.userId ? (
           <div className="card w-100 border-2 border-info">
             <div className="row">
               <div className="d-flex flex-column col-12">
-                <h5>Enter your name</h5>
-                <div className="d-flex align-items-center justify-content-center">
-                  <div className="col-4 position-relative">
+                <div className="d-flex align-items-center py-1">
+                  <div className="position-relative">
                     <input
                       type="text"
                       name="username"
@@ -108,10 +137,13 @@ function App() {
                       placeholder="Username"
                       autoComplete="off"
                       onChange={(e) => handleChange(e)}
+                      onKeyDown={(e) =>
+                        e.code === "Enter" ? joinRoom("DefaultRoom") : null
+                      }
                     />
                     <button
                       className="btn btn-success"
-                      onClick={() => logNewUser()}
+                      onClick={() => joinRoom("DefaultRoom")}
                     >
                       Join
                     </button>
@@ -120,45 +152,11 @@ function App() {
               </div>
             </div>
           </div>
-        )}
-
-
-        {showRoomInput && (
-          <div className="card w-100 border-2 border-info">
-            <div className="row">
-              <div className="d-flex flex-column col-12">
-                <h5>Enter room name</h5>
-                <div className="d-flex align-items-center justify-content-center">
-                  <div className="col-4 position-relative">
-                    <input
-                      type="text"
-                      name="room"
-                      value={room}
-                      className="form-control mb-3"
-                      placeholder="Room Name"
-                      autoComplete="off"
-                      onChange={(e) => setRoom(e.target.value)}
-                    />
-                    <button
-                      className="btn btn-success"
-                      onClick={() => joinRoom()}
-                    >
-                      Join Room
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-
-        {showChat && (
+        ) : (
           <div className="card w-100 border-2 border-info">
             <div className="row vh-95">
               <div className="d-flex flex-column col-12 col-lg-12 col-xl-12 chat-window">
-                
-                {/* Chat header */}
+                {/* Chat header */}
                 <div className="align-items-start py-2 px-4 w-100 border-bottom border-info d-lg-block sticky-top bg-white">
                   <div className="d-flex align-items-center py-1">
                     <div className="position-relative">
@@ -178,24 +176,25 @@ function App() {
                 {/* Chat header */}
 
 
+
                 {/* Chat body */}
                 <div className="position-relative chat-height overflow-auto">
                   <ScrollableFeed>
                     <div className="d-flex flex-column p-4">
                       {messages.map((message, index) => {
-                        const isCurrentUser = message.userId === user.userId;
-                        {/*const isUserStatus = message.type === "userStatus";*/}                        
-                        return message.type === "userStatus" ? (
+                        return message.type === "userStatus" ? (
                           <div key={index} className="text-center">
                             <span className="badge bg-info">
-                              {isCurrentUser? "You have joined" : `${message.username} has joined`}
+                              {message.userId === user.userId
+                                ? "You have joined"
+                                : `${message.username} has joined`}
                             </span>
                           </div>
                         ) : (
                           <div
                             key={index}
                             className={
-                              isCurrentUser
+                              message.userId === user.userId
                                 ? "chat-message-right pb-4"
                                 : "chat-message-left pb-4"
                             }
@@ -210,7 +209,9 @@ function App() {
                                 height="40"
                               />
                               <div className="font-weight-bold mb-1">
-                                {isCurrentUser? "You" : message.username}
+                                {message.userId === user.userId
+                                  ? "You"
+                                  : message.username}
                               </div>
                             </div>
                             <div>
@@ -235,7 +236,7 @@ function App() {
                       className="form-control"
                       name="message"
                       value={message}
-                      placeholder="Enter your message..."
+                      placeholder="Enter your message......"
                       onChange={({ currentTarget: input }) =>
                         setMessage(input.value)
                       }
@@ -248,6 +249,12 @@ function App() {
                       onClick={() => sendMessage()}
                     >
                       Send
+                    </button>
+                    <button
+                      className="btn btn-danger"
+                      onClick={() => leaveRoom()}
+                    >
+                      Leave Room
                     </button>
                   </div>
                 </div>
@@ -263,6 +270,4 @@ function App() {
 
 
 export default App;
-
-
 
